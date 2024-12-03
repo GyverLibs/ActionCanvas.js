@@ -18,8 +18,9 @@ export default class ActionCanvas extends EventNode {
     constructor(canvas, clickZone = 5, clickTout = 300) {
         super();
         this.cv = canvas;
-        this.clickZone = clickZone;
-        this.clickTout = clickTout;
+        this.#clickZone = clickZone;
+        this.#clickTout = clickTout;
+        this.startEvents();
     }
 
     startEvents() {
@@ -65,7 +66,7 @@ export default class ActionCanvas extends EventNode {
         this.onpress(xy);
         this.#pressXY = xy;
         if (this.#tout) clearTimeout(this.#tout);
-        this.#tout = setTimeout(() => this.#tout = null, this.clickTout);
+        this.#tout = setTimeout(() => this.#tout = null, this.#clickTout);
     }
     #touchstart(e) {
         e.preventDefault();
@@ -99,7 +100,7 @@ export default class ActionCanvas extends EventNode {
             this.#makeDXY(xy);
             this.dispatchEvent(new CanvasEvent("release", xy));
             this.onrelease(xy);
-            if (this.#tout && Math.abs(xy.dx) < this.clickZone && Math.abs(xy.dy) < this.clickZone) {
+            if (this.#tout && Math.abs(xy.dx) < this.#clickZone && Math.abs(xy.dy) < this.#clickZone) {
                 this.dispatchEvent(new CanvasEvent("click", xy));
                 this.onclick(xy);
             }
@@ -144,6 +145,8 @@ export default class ActionCanvas extends EventNode {
 
     #pressXY = null;
     #tout = null;
+    #clickZone;
+    #clickTout;
     #_touchstart;
     #_touchmove;
     #_touchend;
