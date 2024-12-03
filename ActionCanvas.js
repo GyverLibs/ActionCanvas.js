@@ -17,7 +17,13 @@ export default class ActionCanvas extends EventNode {
 
     constructor(canvas, clickZone = 5, clickTout = 300) {
         super();
+        
+        /** @type {Canvas} */
         this.cv = canvas;
+
+        /** @type {CanvasRenderingContext2D} */
+        this.cx = canvas.getContext("2d");
+
         this.#clickZone = clickZone;
         this.#clickTout = clickTout;
         this.startEvents();
