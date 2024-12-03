@@ -133,7 +133,7 @@ export default class ActionCanvas extends EventNode {
             x -= this.cv.offsetParent.offsetLeft;
             y -= this.cv.offsetParent.offsetTop;
         }
-        return { x: x * window.devicePixelRatio, y: y * window.devicePixelRatio };
+        return { x: x, y: y };
     }
     #makeDXY(xy) {
         if (this.#pressXY) {
