@@ -53,16 +53,16 @@ export default class ActionCanvas extends EventNode {
     }
 
     // virtual
-    press(xy) { }
-    release(xy) { }
-    click(xy) { }
-    move(xy) { }
+    onpress(xy) { }
+    onrelease(xy) { }
+    onclick(xy) { }
+    onmove(xy) { }
 
     // private
     #press(xy) {
         document.body.style.userSelect = 'none';
         this.dispatchEvent(new CanvasEvent("press", xy));
-        this.press(xy);
+        this.onpress(xy);
         this.#pressXY = xy;
         if (this.#tout) clearTimeout(this.#tout);
         this.#tout = setTimeout(() => this.#tout = null, this.clickTout);
@@ -81,7 +81,7 @@ export default class ActionCanvas extends EventNode {
             this.#makeDXY(xy);
             xy.pressed = !!this.#pressXY;
             this.dispatchEvent(new CanvasEvent("move", xy));
-            this.move(xy);
+            this.onmove(xy);
         }
     }
     #touchmove(e) {
@@ -98,10 +98,10 @@ export default class ActionCanvas extends EventNode {
         if (xy && this.#pressXY) {
             this.#makeDXY(xy);
             this.dispatchEvent(new CanvasEvent("release", xy));
-            this.release(xy);
+            this.onrelease(xy);
             if (this.#tout && Math.abs(xy.dx) < this.clickZone && Math.abs(xy.dy) < this.clickZone) {
                 this.dispatchEvent(new CanvasEvent("click", xy));
-                this.click(xy);
+                this.onclick(xy);
             }
         }
         this.#pressXY = null;

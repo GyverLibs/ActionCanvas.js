@@ -1,6 +1,6 @@
 {
   "name": "@alexgyver/action-canvas",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Click events for canvas",
   "main": "./ActionCanvas.js",
   "module": "./ActionCanvas.js",
