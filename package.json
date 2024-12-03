@@ -1,0 +1,17 @@
+{
+  "name": "@alexgyver/action-canvas",
+  "version": "1.0.1",
+  "description": "Click events for canvas",
+  "main": "./ActionCanvas.js",
+  "module": "./ActionCanvas.js",
+  "types": "./ActionCanvas.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GyverLibs/ActionCanvas.js.git"
+  },
+  "author": "AlexGyver <alex@alexgyver.ru>",
+  "license": "MIT",
+  "dependencies": {
+    "@alexgyver/eventnode": "^1.0.1"
+  }
+}
