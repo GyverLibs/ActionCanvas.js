@@ -1,23 +1,6 @@
-import EventNode from "@alexgyver/eventnode";
-
-class CanvasEvent extends Event {
-    constructor(name, pos) {
-        super(name);
-        this.pos = pos;
-    }
-}
-
-// addEventListener
-// "press" - pos:{x, y}
-// "release" - pos:{x, y, dx, dy}
-// "click" - pos:{x, y}
-// "move" - pos:{x, y, dx, dy, pressed}
-
-export default class ActionCanvas extends EventNode {
+export default class ActionCanvas {
 
     constructor(canvas, clickZone = 5, clickTout = 300) {
-        super();
-        
         /** @type {Canvas} */
         this.cv = canvas;
 
@@ -30,108 +13,163 @@ export default class ActionCanvas extends EventNode {
     }
 
     startEvents() {
+        if (this.#started) return;
         if ("ontouchstart" in document.documentElement) {
             this.#_touchstart = this.#touchstart.bind(this);
             this.#_touchmove = this.#touchmove.bind(this);
             this.#_touchend = this.#touchend.bind(this);
             this.cv.addEventListener("touchstart", this.#_touchstart, { passive: false });
             document.addEventListener("touchmove", this.#_touchmove, { passive: false });
-            document.addEventListener("touchend", this.#_touchend);
+            document.addEventListener("touchend", this.#_touchend, {});
         } else {
             this.#_mousedown = this.#mousedown.bind(this);
             this.#_mousemove = this.#mousemove.bind(this);
             this.#_mouseup = this.#mouseup.bind(this);
+            this.#_wheel = this.#wheel.bind(this);
             this.cv.addEventListener("mousedown", this.#_mousedown);
             document.addEventListener("mousemove", this.#_mousemove);
             document.addEventListener("mouseup", this.#_mouseup);
+            document.addEventListener("wheel", this.#_wheel, { passive: false });
         }
+        this.#started = true;
     }
 
     stopEvents() {
+        if (!this.#started) return;
         if ("ontouchstart" in document.documentElement) {
             this.cv.removeEventListener("touchstart", this.#_touchstart, { passive: false });
             document.removeEventListener("touchmove", this.#_touchmove, { passive: false });
-            document.removeEventListener("touchend", this.#_touchend);
+            document.removeEventListener("touchend", this.#_touchend, {});
         } else {
             this.cv.removeEventListener("mousedown", this.#_mousedown);
             document.removeEventListener("mousemove", this.#_mousemove);
             document.removeEventListener("mouseup", this.#_mouseup);
+            document.removeEventListener("wheel", this.#_wheel);
         }
+        this.#started = false;
     }
 
-    // virtual
-    onpress(xy) { }
-    onrelease(xy) { }
-    onclick(xy) { }
-    onmove(xy) { }
+    // "press" - {x, y, dx, dy, btn}
+    // "release" - {x, y, dx, dy, btn}
+    // "move" - {x, y, dx, dy, drag, zoom, btn}
+    // "zoom" - {x, y, dx, dy, value, drag, cx, cy, btn}
+    // "click" - {x, y, dx, dy, btn} - after release
+    // btn: 1 LMB, 2 RMB, 4 MMB
 
-    // private
-    #press(xy) {
-        document.body.style.userSelect = 'none';
-        this.dispatchEvent(new CanvasEvent("press", xy));
-        this.onpress(xy);
-        this.#pressXY = xy;
-        if (this.#tout) clearTimeout(this.#tout);
-        this.#tout = setTimeout(() => this.#tout = null, this.#clickTout);
+    onevent(e) { }
+
+    //#region handler
+    #press(xy, btn = 0) {
+        this.onevent({ type: "press", ...xy, dx: 0, dy: 0, btn: btn });
     }
+    #move(xy, prev, drag, btn = 0) {
+        let dxy = this.#makeDXY(xy, prev);
+        this.onevent({ type: "move", ...xy, ...dxy, drag: drag, btn: btn });
+    }
+    #release(xy, prev, btn = 0) {
+        let dxy = this.#makeDXY(xy, prev);
+        this.onevent({ type: "release", ...xy, ...dxy, btn: btn });
+    }
+    #zoom(value, xy, prev, drag, cx, cy, btn = 0) {
+        let dxy = this.#makeDXY(xy, prev);
+        this.onevent({ type: "zoom", value: value, ...xy, ...dxy, drag: drag, cx: cx, cy: cy, btn: btn });
+    }
+
+    //#region touch
     #touchstart(e) {
         e.preventDefault();
-        this.#press(this.#touchXY(e));
-    }
-    #mousedown(e) {
-        e.preventDefault();
-        this.#press(this.#mouseXY(e));
-    }
-
-    #move(xy) {
-        if (xy) {
-            this.#makeDXY(xy);
-            xy.pressed = !!this.#pressXY;
-            this.dispatchEvent(new CanvasEvent("move", xy));
-            this.onmove(xy);
+        let tch = this.#filtTarget(e, this.cv);
+        switch (tch.length) {
+            case 1:
+                this.#touch.push(tch[0]);
+                this.#hyp = null;
+                this.#restartClick();
+                break;
+            case 2:
+                let swap = (this.#touch[0].id == tch[1].id);
+                this.#touch.push(swap ? tch[0] : tch[1]);
+                this.#touch[0] = swap ? tch[1] : tch[0];
+                this.#press(this.#touch[0].xy);
+                this.#hyp = null;
+                break;
         }
     }
     #touchmove(e) {
         e.preventDefault();
-        this.#move(this.#touchXY(e));
+        if (!this.#touch.length) return;
+        let t0 = this.#filtID(e, this.#touch[0].id);
+
+        if (this.#touch.length == 2) {
+            let t1 = this.#filtID(e, this.#touch[1].id);
+            this.#move(t0.xy, this.#touch[0].xy, true);
+            let dxy = this.#makeDXY(t1.xy, t0.xy);
+            let hyp = Math.hypot(dxy.dx, dxy.dy);
+            if (this.#hyp) {
+                this.#zoom(hyp - this.#hyp, t0.xy, this.#touch[0].xy, true, t0.xy.x + dxy.dx / 2, t0.xy.y + dxy.dy / 2);
+            }
+            this.#hyp = hyp;
+        } else {
+            if (t0.changed) this.#move(t0.xy, null, false);
+        }
+    }
+
+    #touchend(e) {
+        e.preventDefault();
+        if (!this.#touch.length) return;
+
+        let t0 = this.#filtID(e, this.#touch[0].id);
+
+        if (this.#touch.length == 1) {
+            if (t0.changed) {
+                this.#checkClick(t0.xy, this.#touch[0].xy);
+                this.#touch.shift();
+            }
+        } else {
+            let t1 = this.#filtID(e, this.#touch[1].id);
+            if (t0.changed || t1.changed) this.#release(t0.xy, this.#touch[0].xy);
+            if (t0.changed) {
+                this.#touch.shift();
+            }
+            if (t1.changed) {
+                this.#touch.pop();
+            }
+        }
+    }
+
+    //#region mouse
+    #mousedown(e) {
+        e.preventDefault();
+        this.#btn = e.buttons;
+        this.#clickXY = this.#eXY(e);
+        this.#press(this.#clickXY, e.buttons);
+        this.#restartClick();
     }
     #mousemove(e) {
         e.preventDefault();
-        this.#move(this.#mouseXY(e));
-    }
-
-    #release(xy) {
-        document.body.style.userSelect = '';
-        if (xy && this.#pressXY) {
-            this.#makeDXY(xy);
-            this.dispatchEvent(new CanvasEvent("release", xy));
-            this.onrelease(xy);
-            if (this.#tout && Math.abs(xy.dx) < this.#clickZone && Math.abs(xy.dy) < this.#clickZone) {
-                this.dispatchEvent(new CanvasEvent("click", xy));
-                this.onclick(xy);
-            }
+        if (this.#clickXY || e.target == this.cv) {
+            this.#btn = e.buttons;
+            this.#move(this.#eXY(e), this.#clickXY, !!this.#clickXY, this.#btn);
         }
-        this.#pressXY = null;
-        if (this.#tout) clearTimeout(this.#tout);
-    }
-    #touchend(e) {
-        e.preventDefault();
-        this.#release(this.#touchXY(e));
     }
     #mouseup(e) {
         e.preventDefault();
-        this.#release(this.#mouseXY(e));
+        if (this.#clickXY) {
+            let xy = this.#eXY(e);
+            this.#release(xy, this.#clickXY, this.#btn);
+            this.#checkClick(xy, this.#clickXY, this.#btn);
+        }
+        this.#btn = 0;
+        this.#clickXY = null;
+    }
+    #wheel(e) {
+        e.preventDefault();
+        if (this.#clickXY || e.target == this.cv) {
+            let xy = this.#eXY(e);
+            this.#zoom(-e.deltaY / 10, xy, this.#clickXY, !!this.#clickXY, xy.x, xy.y, this.#btn);
+        }
     }
 
-    #touchXY(e) {
-        for (const t of e.changedTouches) {
-            if (t.target === this.cv) return this.#makeXY(t.pageX, t.pageY);
-        }
-        return null;
-    }
-    #mouseXY(e) {
-        return this.#makeXY(e.pageX, e.pageY);
-    }
+    //#region utils
     #makeXY(x, y) {
         if (this.cv.offsetParent.tagName.toUpperCase() === "BODY") {
             x -= this.cv.offsetLeft;
@@ -140,16 +178,58 @@ export default class ActionCanvas extends EventNode {
             x -= this.cv.offsetParent.offsetLeft;
             y -= this.cv.offsetParent.offsetTop;
         }
-        return { x: x, y: y };
+        return { x: Math.round(x), y: Math.round(y) };
     }
-    #makeDXY(xy) {
-        if (this.#pressXY) {
-            xy.dx = xy.x - this.#pressXY.x;
-            xy.dy = xy.y - this.#pressXY.y;
-        }
+    #eXY(e) {
+        return this.#makeXY(e.pageX, e.pageY);
+    }
+    #makeDXY(xy, prev) {
+        return prev ? { dx: xy.x - prev.x, dy: xy.y - prev.y } : { dx: 0, dy: 0 };
     }
 
-    #pressXY = null;
+    #restartClick() {
+        if (this.#tout) clearTimeout(this.#tout);
+        this.#tout = setTimeout(() => this.#tout = null, this.#clickTout);
+    }
+    #checkClick(xy, prev, btn = 0) {
+        let dxy = this.#makeDXY(xy, prev);
+        if (this.#tout && Math.abs(dxy.dx) < this.#clickZone && Math.abs(dxy.dy) < this.#clickZone) {
+            this.onevent({ type: "click", ...xy, dx: 0, dy: 0, btn: btn });
+        }
+        if (this.#tout) clearTimeout(this.#tout);
+    }
+
+    #getTouch(t) {
+        return { id: t.identifier, xy: this.#eXY(t) };
+    }
+    #filtTarget(e, tar) {
+        let touches = [];
+        for (const t of e.touches) {
+            if (t.target === tar) touches.push(this.#getTouch(t));
+        }
+        return touches;
+    }
+    #filtID(e, id) {
+        for (const t of e.changedTouches) {
+            if (t.identifier === id) {
+                let touch = this.#getTouch(t);
+                touch.changed = true;
+                return touch;
+            }
+        }
+        for (const t of e.touches) {
+            if (t.identifier === id) {
+                return this.#getTouch(t);
+            }
+        }
+        return null;
+    }
+
+    #touch = [];
+    #hyp;
+    #btn = 0;
+    #clickXY = null;
+    #started = false;
     #tout = null;
     #clickZone;
     #clickTout;
@@ -159,4 +239,5 @@ export default class ActionCanvas extends EventNode {
     #_mousedown;
     #_mousemove;
     #_mouseup;
+    #_wheel;
 }
