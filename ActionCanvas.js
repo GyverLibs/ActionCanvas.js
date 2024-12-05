@@ -49,8 +49,8 @@ export default class ActionCanvas {
         this.#started = false;
     }
 
-    // "press" - {x, y, dx, dy, btn}
-    // "release" - {x, y, dx, dy, btn}
+    // "press" - {x, y, dx, dy, drag, btn}
+    // "release" - {x, y, dx, dy, drag, btn}
     // "move" - {x, y, dx, dy, drag, zoom, btn}
     // "zoom" - {x, y, dx, dy, value, drag, cx, cy, btn}
     // "click" - {x, y, dx, dy, btn} - after release
@@ -60,7 +60,7 @@ export default class ActionCanvas {
 
     //#region handler
     #press(xy, btn = 0) {
-        this.onevent({ type: "press", ...xy, dx: 0, dy: 0, btn: btn });
+        this.onevent({ type: "press", ...xy, dx: 0, dy: 0, drag: true, btn: btn });
     }
     #move(xy, prev, drag, btn = 0) {
         let dxy = this.#makeDXY(xy, prev);
@@ -68,7 +68,7 @@ export default class ActionCanvas {
     }
     #release(xy, prev, btn = 0) {
         let dxy = this.#makeDXY(xy, prev);
-        this.onevent({ type: "release", ...xy, ...dxy, btn: btn });
+        this.onevent({ type: "release", ...xy, ...dxy, drag: false, btn: btn });
     }
     #zoom(value, xy, prev, drag, cx, cy, btn = 0) {
         let dxy = this.#makeDXY(xy, prev);
@@ -95,8 +95,8 @@ export default class ActionCanvas {
         }
     }
     #touchmove(e) {
-        e.preventDefault();
         if (!this.#touch.length) return;
+        e.preventDefault();
         let t0 = this.#filtID(e, this.#touch[0].id);
 
         if (this.#touch.length == 2) {
@@ -114,8 +114,8 @@ export default class ActionCanvas {
     }
 
     #touchend(e) {
-        e.preventDefault();
         if (!this.#touch.length) return;
+        e.preventDefault();
 
         let t0 = this.#filtID(e, this.#touch[0].id);
 
@@ -145,15 +145,15 @@ export default class ActionCanvas {
         this.#restartClick();
     }
     #mousemove(e) {
-        e.preventDefault();
         if (this.#clickXY || e.target == this.cv) {
+            e.preventDefault();
             this.#btn = e.buttons;
             this.#move(this.#eXY(e), this.#clickXY, !!this.#clickXY, this.#btn);
         }
     }
     #mouseup(e) {
-        e.preventDefault();
         if (this.#clickXY) {
+            e.preventDefault();
             let xy = this.#eXY(e);
             this.#release(xy, this.#clickXY, this.#btn);
             this.#checkClick(xy, this.#clickXY, this.#btn);
