@@ -1,10 +1,11 @@
 import ActionCanvas from './ActionCanvas';
 
 class Test extends ActionCanvas {
-    constructor() {
+    constructor(skipmode) {
         let cv = document.createElement('canvas');
         document.body.append(cv);
         super(cv);
+        this.skipmode = skipmode;
         cv.width = 300;
         cv.height = 300;
         cv.style.border = '1px solid black';
@@ -19,16 +20,14 @@ class Test extends ActionCanvas {
         }
 
         this.onevent = (e) => {
-            console.log(e.type, e.btn, e.drag);
+            if (e.tmode == this.skipmode) return;
+            console.log(e);
+
             let col = 'black';
 
             switch (e.type) {
                 case 'click':
                     col = 'green';
-                    break;
-                case 'press':
-                    break;
-                case 'move':
                     break;
                 case 'release':
                     x += e.dx;
@@ -40,7 +39,9 @@ class Test extends ActionCanvas {
                     r += e.value;
                     break;
             }
+
             if (e.drag) col = 'red';
+
             this.cx.fillStyle = col;
             this.cx.clearRect(0, 0, this.cv.width, this.cv.height);
             line(e.x, 0, e.x, this.cv.height);
@@ -56,6 +57,8 @@ class Test extends ActionCanvas {
     }
 }
 
+
 document.addEventListener("DOMContentLoaded", () => {
-    new Test();
+    new Test(1);
+    new Test(2);
 });

@@ -59,20 +59,20 @@ export default class ActionCanvas {
     onevent(e) { }
 
     //#region handler
-    #press(xy, btn = 0) {
-        this.onevent({ type: "press", ...xy, dx: 0, dy: 0, drag: true, btn: btn });
+    #press(xy, btn = 0, tmode = null) {
+        this.onevent({ type: "press", ...xy, dx: 0, dy: 0, drag: true, btn: btn, tmode: tmode });
     }
-    #move(xy, prev, drag, btn = 0) {
+    #move(xy, prev, drag, btn = 0, tmode = null) {
         let dxy = this.#makeDXY(xy, prev);
-        this.onevent({ type: "move", ...xy, ...dxy, drag: drag, btn: btn });
+        this.onevent({ type: "move", ...xy, ...dxy, drag: drag, btn: btn, tmode: tmode });
     }
-    #release(xy, prev, btn = 0) {
+    #release(xy, prev, btn = 0, tmode = null) {
         let dxy = this.#makeDXY(xy, prev);
-        this.onevent({ type: "release", ...xy, ...dxy, drag: false, btn: btn });
+        this.onevent({ type: "release", ...xy, ...dxy, drag: false, btn: btn, tmode: tmode });
     }
-    #zoom(value, xy, prev, drag, cx, cy, btn = 0) {
+    #zoom(value, xy, prev, drag, cx, cy, btn = 0, tmode = null) {
         let dxy = this.#makeDXY(xy, prev);
-        this.onevent({ type: "zoom", value: value, ...xy, ...dxy, drag: drag, cx: cx, cy: cy, btn: btn });
+        this.onevent({ type: "zoom", value: value, ...xy, ...dxy, drag: drag, cx: cx, cy: cy, btn: btn, tmode: tmode });
     }
 
     //#region touch
@@ -82,6 +82,8 @@ export default class ActionCanvas {
         switch (tch.length) {
             case 1:
                 this.#touch.push(tch[0]);
+                this.#clickXY = tch[0].xy;
+                this.#press(this.#touch[0].xy, 0, 1);
                 this.#hyp = null;
                 this.#restartClick();
                 break;
@@ -89,7 +91,7 @@ export default class ActionCanvas {
                 let swap = (this.#touch[0].id == tch[1].id);
                 this.#touch.push(swap ? tch[0] : tch[1]);
                 this.#touch[0] = swap ? tch[1] : tch[0];
-                this.#press(this.#touch[0].xy);
+                this.#press(this.#touch[0].xy, 0, 2);
                 this.#hyp = null;
                 break;
         }
@@ -100,16 +102,22 @@ export default class ActionCanvas {
         let t0 = this.#filtID(e, this.#touch[0].id);
 
         if (this.#touch.length == 2) {
+            this.#move(t0.xy, this.#touch[0].xy, true, 0, 2);
+            this.#move(t0.xy, this.#clickXY, true, 0, 1);
             let t1 = this.#filtID(e, this.#touch[1].id);
-            this.#move(t0.xy, this.#touch[0].xy, true);
             let dxy = this.#makeDXY(t1.xy, t0.xy);
             let hyp = Math.hypot(dxy.dx, dxy.dy);
             if (this.#hyp) {
-                this.#zoom(hyp - this.#hyp, t0.xy, this.#touch[0].xy, true, t0.xy.x + dxy.dx / 2, t0.xy.y + dxy.dy / 2);
+                let cxy = [t0.xy.x + dxy.dx / 2, t0.xy.y + dxy.dy / 2];
+                this.#zoom(hyp - this.#hyp, t0.xy, this.#touch[0].xy, true, ...cxy, 0, 2);
+                this.#zoom(hyp - this.#hyp, t0.xy, this.#clickXY, true, ...cxy, 0, 1);
             }
             this.#hyp = hyp;
         } else {
-            if (t0.changed) this.#move(t0.xy, null, false);
+            if (t0.changed) {
+                this.#move(t0.xy, null, false, 0, 2);
+                this.#move(t0.xy, this.#clickXY, true, 0, 1);
+            }
         }
     }
 
@@ -121,13 +129,17 @@ export default class ActionCanvas {
 
         if (this.#touch.length == 1) {
             if (t0.changed) {
+                this.#release(t0.xy, this.#clickXY, 0, 1);
                 this.#checkClick(t0.xy, this.#touch[0].xy);
                 this.#touch.shift();
             }
         } else {
             let t1 = this.#filtID(e, this.#touch[1].id);
-            if (t0.changed || t1.changed) this.#release(t0.xy, this.#touch[0].xy);
+            if (t0.changed || t1.changed) {
+                this.#release(t0.xy, this.#touch[0].xy, 0, 2);
+            }
             if (t0.changed) {
+                this.#clickXY = { x: this.#clickXY.x + t1.xy.x - t0.xy.x, y: this.#clickXY.y + t1.xy.y - t0.xy.y };
                 this.#touch.shift();
             }
             if (t1.changed) {
